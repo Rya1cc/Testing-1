@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Bowl Environmental Favorability Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0a0a0a;
+            overflow: hidden;
+            color: #fff;
+        }
+
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #hexCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        #legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(10, 10, 20, 0.95);
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #d4af37;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            min-width: 280px;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        #legend h3 {
+            margin-bottom: 15px;
+            color: #d4af37;
+            font-size: 16px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: 2px solid #d4af37;
+            padding-bottom: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 8px 0;
+            font-size: 13px;
+        }
+
+        .legend-color {
+            width: 32px;
+            height: 20px;
+            margin-right: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        #info {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(10, 10, 20, 0.95);
+            padding: 20px 25px;
+            border-radius: 8px;
+            border: 2px solid #d4af37;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            max-width: 400px;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        #cityName {
+            font-size: 28px;
+            font-weight: bold;
+            color: #d4af37;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+        }
+
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(10, 10, 20, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #d4af37;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+        }
+
+        button {
+            background: linear-gradient(135deg, #d4af37 0%, #b8941e 100%);
+            border: none;
+            color: #0a0a0a;
+            padding: 10px 18px;
+            margin: 3px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(212, 175, 55, 0.5);
+        }
+
+        #tooltip {
+            position: absolute;
+            background: rgba(10, 10, 20, 0.98);
+            padding: 14px 18px;
+            border-radius: 8px;
+            border: 2px solid #d4af37;
+            pointer-events: none;
+            display: none;
+            z-index: 3000;
+            font-size: 13px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.9);
+            max-width: 250px;
+        }
+
+        #tooltip strong {
+            color: #d4af37;
+            display: block;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <canvas id="hexCanvas"></canvas>
+
+    <div id="controls">
+        <button onclick="toggleHexagons()">Toggle Hexagons</button>
+        <button onclick="changeOpacity(-0.1)">More Opaque</button>
+        <button onclick="changeOpacity(0.1)">More Transparent</button>
+    </div>
+
+    <div id="legend">
+        <h3>⚡ Environmental Impact</h3>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(46, 204, 113, 0.6);"></div>
+            <span>Excellent - Renewable</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(39, 174, 96, 0.6);"></div>
+            <span>Good - Green District</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(243, 156, 18, 0.6);"></div>
+            <span>Moderate - Mixed</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(230, 126, 34, 0.6);"></div>
+            <span>Poor - High Density</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(192, 57, 43, 0.6);"></div>
+            <span>Very Poor - Industrial</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(52, 152, 219, 0.6);"></div>
+            <span>Water/River</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: rgba(52, 73, 94, 0.6);"></div>
+            <span>Stadium District</span>
+        </div>
+    </div>
+
+    <div id="info">
+        <div id="cityName">🏈 New Orleans</div>
+        <div style="font-size: 13px; color: #ccc; margin-top: 8px;">
+            <strong>Stadium:</strong> Caesars Superdome<br>
+            <strong>Airport:</strong> Louis Armstrong Intl<br>
+            <strong>Port:</strong> Mississippi River
+        </div>
+        <div style="margin-top: 10px; font-size: 12px; color: #999;">
+            Pan and zoom the map • Hover hexagons for details
+        </div>
+    </div>
+
+    <div id="tooltip"></div>
+
+    <script>
+        // Initialize Leaflet map centered on New Orleans
+        const map = L.map('map', {
+            zoomControl: false
+        }).setView([29.9511, -90.0715], 12);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
+        }).addTo(map);
+
+        // Canvas setup
+        const canvas = document.getElementById('hexCanvas');
+        const ctx = canvas.getContext('2d');
+        const tooltip = document.getElementById('tooltip');
+
+        let hexOpacity = 0.6;
+        let showHexagons = true;
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            drawHexagons();
+        }
+
+        // Hex parameters
+        const hexSize = 27; // pixels
+        
+        // Define environmental zones based on New Orleans geography
+        const zones = {
+            renewable: { color: '46, 204, 113', name: 'Renewable Energy Hub', impact: 'Excellent' },
+            green: { color: '39, 174, 96', name: 'Green Infrastructure', impact: 'Good' },
+            moderate: { color: '243, 156, 18', name: 'Mixed Energy District', impact: 'Moderate' },
+            highImpact: { color: '230, 126, 34', name: 'High Density Area', impact: 'Poor' },
+            industrial: { color: '192, 57, 43', name: 'Industrial/Port', impact: 'Very Poor' },
+            water: { color: '52, 152, 219', name: 'Water', impact: 'Neutral' },
+            stadium: { color: '52, 73, 94', name: 'Stadium District', impact: 'Event Venue' }
+        };
+
+        function getZoneForLocation(lat, lng) {
+            // Stadium area (Superdome)
+            if (lat > 29.948 && lat < 29.953 && lng > -90.083 && lng < -90.078) {
+                return zones.stadium;
+            }
+            
+            // French Quarter / Downtown (high density)
+            if (lat > 29.945 && lat < 29.965 && lng > -90.085 && lng < -90.055) {
+                return zones.highImpact;
+            }
+            
+            // Port/Industrial (along river)
+            if (lat > 29.93 && lat < 29.95 && lng > -90.08 && lng < -90.04) {
+                return zones.industrial;
+            }
+            
+            // Lake Pontchartrain
+            if (lat > 30.0) {
+                return zones.water;
+            }
+            
+            // Mississippi River
+            if (lng > -90.075 && lng < -90.065) {
+                return zones.water;
+            }
+            
+            // Uptown area (more sustainable)
+            if (lat > 29.92 && lat < 29.95 && lng > -90.13 && lng < -90.09) {
+                return zones.green;
+            }
+            
+            // Renewable zones (newer developments)
+            if (lat > 29.96 && lat < 29.99 && lng > -90.1 && lng < -90.06) {
+                return zones.renewable;
+            }
+            
+            // Eastern suburbs
+            if (lng < -90.0 && lat > 29.95) {
+                return zones.moderate;
+            }
+            
+            // Default to moderate
+            return zones.moderate;
+        }
+
+        function latLngToPixel(lat, lng) {
+            return map.latLngToContainerPoint([lat, lng]);
+        }
+
+        function pixelToLatLng(x, y) {
+            return map.containerPointToLatLng([x, y]);
+        }
+
+        function drawHexagon(x, y, size, color, opacity, highlight = false) {
+            ctx.beginPath();
+            for (let i = 0; i < 6; i++) {
+                const angle = Math.PI / 3 * i - Math.PI / 6;
+                const hx = x + size * Math.cos(angle);
+                const hy = y + size * Math.sin(angle);
+                if (i === 0) ctx.moveTo(hx, hy);
+                else ctx.lineTo(hx, hy);
+            }
+            ctx.closePath();
+
+            // Fill
+            ctx.fillStyle = `rgba(${color}, ${opacity})`;
+            ctx.fill();
+
+            // Border
+            ctx.strokeStyle = highlight ? `rgba(212, 175, 55, ${opacity + 0.3})` : `rgba(0, 0, 0, ${opacity * 0.5})`;
+            ctx.lineWidth = highlight ? 3 : 1.5;
+            ctx.stroke();
+
+            // Inner highlight
+            ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.15})`;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+
+        let hexGrid = [];
+
+        function generateHexGrid() {
+            hexGrid = [];
+            const bounds = map.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+
+            // Calculate hex dimensions
+            const hexWidth = Math.sqrt(3) * hexSize;
+            const hexHeight = 2 * hexSize;
+            const vertDist = hexHeight * 3 / 4;
+
+            // Generate grid
+            let row = 0;
+            for (let lat = sw.lat; lat < ne.lat; lat += (ne.lat - sw.lat) / 10) {
+                let col = 0;
+                let count_ = 1;
+                const offset = (row % 2) * (hexWidth / 2);
+                for (let lng = sw.lng; lng < ne.lng; lng += (ne.lng - sw.lng) / 30) {
+                    if (count_ % 2 == 1) {
+                        const zone = getZoneForLocation(lat, lng);
+                        hexGrid.push({ lat, lng, zone, row, col });
+                    }
+                    if (count_ % 2 == 0) {
+                        const zone = getZoneForLocation(lat, lng);
+                        hexGrid.push({ lat, lng, zone, row, col });
+                    }
+                    col++;
+                }
+                count_ ++;
+                row++;
+            }
+        }
+
+        function drawHexagons() {
+            if (!showHexagons) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                return;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            hexGrid.forEach(hex => {
+                const pixel = latLngToPixel(hex.lat, hex.lng);
+                drawHexagon(pixel.x, pixel.y, hexSize, hex.zone.color, hexOpacity, hex.highlight);
+            });
+        }
+
+        function findHexAtPixel(x, y) {
+            let closest = null;
+            let minDist = Infinity;
+
+            hexGrid.forEach(hex => {
+                const pixel = latLngToPixel(hex.lat, hex.lng);
+                const dist = Math.sqrt(Math.pow(pixel.x - x, 2) + Math.pow(pixel.y - y, 2));
+                if (dist < hexSize && dist < minDist) {
+                    minDist = dist;
+                    closest = hex;
+                }
+            });
+
+            return closest;
+        }
+
+        // Event listeners
+        map.on('move zoom', () => {
+            generateHexGrid();
+            drawHexagons();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            hexGrid.forEach(hex => hex.highlight = false);
+            
+            const hoveredHex = findHexAtPixel(e.clientX, e.clientY);
+            if (hoveredHex) {
+                hoveredHex.highlight = true;
+                tooltip.style.display = 'block';
+                tooltip.style.left = e.clientX + 20 + 'px';
+                tooltip.style.top = e.clientY + 20 + 'px';
+                tooltip.innerHTML = `<strong>${hoveredHex.zone.name}</strong>Environmental Impact: ${hoveredHex.zone.impact}`;
+            } else {
+                tooltip.style.display = 'none';
+            }
+            drawHexagons();
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+            hexGrid.forEach(hex => hex.highlight = false);
+            drawHexagons();
+        });
+
+        function toggleHexagons() {
+            showHexagons = !showHexagons;
+            drawHexagons();
+        }
+
+        function changeOpacity(delta) {
+            hexOpacity = Math.max(0.1, Math.min(0.9, hexOpacity + delta));
+            drawHexagons();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // Initialize
+        resizeCanvas();
+        generateHexGrid();
+        drawHexagons();
+    </script>
+</body>
+</html>
